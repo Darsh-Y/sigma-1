@@ -1,0 +1,104 @@
+const listing = require("../models/listing.js");
+
+module.exports.index = async (req, res) => {
+  const allListing = await listing.find({});
+  res.render("./listing/index.ejs", { allListing });
+};
+
+module.exports.renderNewForm = (req, res) => {
+  res.render("./listing/new.ejs");
+};
+
+module.exports.showListing = async (req, res) => {
+  let { id } = req.params;
+  // console.log(id);
+  const foundlisting = await listing
+    .findById(id)
+    .populate({
+      path: "reviews",
+      populate: {
+        path: "author",
+      },
+    })
+    .populate("owner");
+  if (!foundlisting) {
+    req.flash("error", "Listing you're trying to access does not exists");
+    res.redirect("/listings");
+  }
+  res.render("./listing/show.ejs", { listing: foundlisting });
+  console.log(foundlisting);
+};
+
+module.exports.createListing = async (req, res, next) => {
+  const { location } = req.body.listing;
+  const geoResponse = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+      location
+    )}`
+  );
+  const geoData = await geoResponse.json();
+
+  if (!geoData.length) {
+    req.flash("error", "Invalid location. Please try again.");
+    return res.redirect("/listings/new");
+  }
+
+  const lat = parseFloat(geoData[0].lat);
+  const lon = parseFloat(geoData[0].lon);
+  const newListing = new listing(req.body.listing);
+
+  newListing.owner = req.user._id;
+  newListing.geometry = {
+    type: "Point",
+    coordinates: [lon, lat],
+  };
+  newListing.image = {
+    url: req.file.path,
+    filename: req.file.filename,
+  };
+
+  await newListing.save();
+  // console.log(newListing);
+  req.flash("success", "New Listing Created!");
+  res.redirect("/listings");
+  next();
+};
+
+module.exports.editListing = async (req, res) => {
+  let { id } = req.params;
+  const editlisting = await listing.findById(id);
+  if (!editlisting) {
+    req.flash("error", "Listing you're trying to access does not exists");
+    res.redirect("/listings");
+  }
+
+  let originalImage = editlisting.image.url;
+  let newImageUrl = originalImage.replace("/upload", "/upload/h_200");
+  // console.log(editlisting);
+  res.render("./listing/edit.ejs", { listing: editlisting, newImageUrl });
+};
+
+module.exports.updateListing = async (req, res) => {
+  let { id } = req.params;
+  let updatedListing = await listing.findByIdAndUpdate(id, {
+    ...req.body.listing,
+  });
+
+  if (typeof req.file !== "undefined") {
+    let url = req.file.path;
+    let filename = req.file.filename;
+    updatedListing.image = { url, filename };
+    await updatedListing.save();
+  }
+
+  req.flash("success", "Listing Updated");
+  res.redirect(`/listings/${id}`);
+};
+
+module.exports.destroyListing = async (req, res) => {
+  let { id } = req.params;
+  let deletedlisting = await listing.findByIdAndDelete(id);
+  console.log(deletedlisting);
+  req.flash("success", "Listing Deleted!");
+  res.redirect(`/listings`);
+};
