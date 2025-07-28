@@ -30,38 +30,51 @@ module.exports.showListing = async (req, res) => {
 };
 
 module.exports.createListing = async (req, res, next) => {
-  const { location } = req.body.listing;
-  const geoResponse = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-      location
-    )}`
-  );
-  const geoData = await geoResponse.json();
+  try {
+    // Check if required environment variables are set
+    if (!process.env.CLOUD_NAME || !process.env.CLOUD_API_KEY || !process.env.CLOUD_API_SECRET) {
+      req.flash("error", "Server configuration error. Please contact administrator.");
+      return res.redirect("/listings/new");
+    }
+    
+    const { location } = req.body.listing;
+    const geoResponse = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        location
+      )}`
+    );
+    const geoData = await geoResponse.json();
 
-  if (!geoData.length) {
-    req.flash("error", "Invalid location. Please try again.");
-    return res.redirect("/listings/new");
+    if (!geoData.length) {
+      req.flash("error", "Invalid location. Please try again.");
+      return res.redirect("/listings/new");
+    }
+
+    const lat = parseFloat(geoData[0].lat);
+    const lon = parseFloat(geoData[0].lon);
+    const newListing = new listing(req.body.listing);
+
+    newListing.owner = req.user._id;
+    newListing.geometry = {
+      type: "Point",
+      coordinates: [lon, lat],
+    };
+    
+    if (req.file) {
+      newListing.image = {
+        url: req.file.path,
+        filename: req.file.filename,
+      };
+    }
+
+    await newListing.save();
+    req.flash("success", "New Listing Created!");
+    res.redirect("/listings");
+  } catch (error) {
+    console.error("Error creating listing:", error);
+    req.flash("error", "Failed to create listing. Please try again.");
+    res.redirect("/listings/new");
   }
-
-  const lat = parseFloat(geoData[0].lat);
-  const lon = parseFloat(geoData[0].lon);
-  const newListing = new listing(req.body.listing);
-
-  newListing.owner = req.user._id;
-  newListing.geometry = {
-    type: "Point",
-    coordinates: [lon, lat],
-  };
-  newListing.image = {
-    url: req.file.path,
-    filename: req.file.filename,
-  };
-
-  await newListing.save();
-  // console.log(newListing);
-  req.flash("success", "New Listing Created!");
-  res.redirect("/listings");
-  next();
 };
 
 module.exports.editListing = async (req, res) => {

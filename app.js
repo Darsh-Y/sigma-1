@@ -32,7 +32,13 @@ main()
   });
 
 async function main() {
-  await mongoose.connect(dbUrl);
+  try {
+    await mongoose.connect(dbUrl);
+    console.log("MongoDB connected successfully");
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    throw error;
+  }
 }
 
 app.set("view engine", "ejs");
@@ -56,7 +62,7 @@ store.on("error", (err) => {
 
 const sessionoptions = {
   store,
-  secret: process.env.SECRET,
+  secret: process.env.SECRET || "fallback-secret-key",
   resave: false,
   saveUninitialized: true,
   cookie: {

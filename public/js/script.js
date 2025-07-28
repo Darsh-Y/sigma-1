@@ -23,13 +23,15 @@
 
 //tax toggle
 let taxSwitch = document.getElementById("switchCheckReverse");
-  taxSwitch.addEventListener("click", () => {
+if (taxSwitch) {
+  taxSwitch.addEventListener("change", () => {
     let taxinfo = document.getElementsByClassName("tax-info");
-    for (info of taxinfo) {
-      if (info.style.display != "inline") {
+    for (let info of taxinfo) {
+      if (taxSwitch.checked) {
         info.style.display = "inline";
       } else {
         info.style.display = "none";
       }
     }
   });
+}
