@@ -47,28 +47,23 @@ module.exports.createListing = async (req, res, next) => {
     const { location } = req.body.listing;
     console.log("Location to geocode:", location);
     
-    const geoResponse = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        location
-      )}`
-    );
-    console.log("Geocoding response status:", geoResponse.status);
-    
-    if (!geoResponse.ok) {
-      console.error("Geocoding API error:", geoResponse.status, geoResponse.statusText);
-      req.flash("error", "Location service temporarily unavailable. Please try again.");
-      return res.redirect("/listings/new");
-    }
-    
-    let geoData;
+    let geoData = [];
     try {
-      geoData = await geoResponse.json();
-      console.log("Geocoding data length:", geoData.length);
-    } catch (parseError) {
-      console.error("Failed to parse geocoding response:", parseError);
-      console.error("Response text:", await geoResponse.text());
-      req.flash("error", "Location service error. Please try again.");
-      return res.redirect("/listings/new");
+      const geoResponse = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          location
+        )}`
+      );
+      console.log("Geocoding response status:", geoResponse.status);
+      
+      if (geoResponse.ok) {
+        geoData = await geoResponse.json();
+        console.log("Geocoding data length:", geoData.length);
+      } else {
+        console.log("Geocoding API returned error status, continuing without coordinates");
+      }
+    } catch (error) {
+      console.log("Geocoding failed, continuing without coordinates:", error.message);
     }
 
     const newListing = new listing(req.body.listing);
