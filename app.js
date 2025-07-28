@@ -32,13 +32,7 @@ main()
   });
 
 async function main() {
-  try {
-    await mongoose.connect(dbUrl);
-    console.log("MongoDB connected successfully");
-  } catch (error) {
-    console.error("MongoDB connection error:", error);
-    throw error;
-  }
+  await mongoose.connect(dbUrl);
 }
 
 app.set("view engine", "ejs");
