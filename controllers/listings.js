@@ -48,35 +48,81 @@ module.exports.createListing = async (req, res, next) => {
     console.log("Location to geocode:", location);
     
     let geoData = [];
+    let coordinates = null;
+    
+    // Try multiple geocoding services with proper error handling
     try {
+      // First try: OpenStreetMap with proper headers
+      console.log("Trying OpenStreetMap geocoding...");
       const geoResponse = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           location
-        )}`
+        )}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'Wanderlust/1.0 (https://wanderlust-36a8.onrender.com)',
+            'Accept': 'application/json'
+          },
+          timeout: 5000
+        }
       );
-      console.log("Geocoding response status:", geoResponse.status);
+      console.log("OpenStreetMap response status:", geoResponse.status);
       
       if (geoResponse.ok) {
         geoData = await geoResponse.json();
-        console.log("Geocoding data length:", geoData.length);
-      } else {
-        console.log("Geocoding API returned error status, continuing without coordinates");
+        console.log("OpenStreetMap data length:", geoData.length);
+        if (geoData.length > 0) {
+          coordinates = {
+            lat: parseFloat(geoData[0].lat),
+            lon: parseFloat(geoData[0].lon)
+          };
+          console.log("OpenStreetMap coordinates found:", coordinates);
+        }
       }
     } catch (error) {
-      console.log("Geocoding failed, continuing without coordinates:", error.message);
+      console.error("OpenStreetMap failed:", error.message);
+    }
+    
+    // If OpenStreetMap failed, try fallback
+    if (!coordinates) {
+      try {
+        console.log("Trying fallback geocoding service...");
+        const fallbackResponse = await fetch(
+          `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(location)}&key=demo&limit=1`,
+          { timeout: 5000 }
+        );
+        console.log("Fallback response status:", fallbackResponse.status);
+        
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackData.results && fallbackData.results.length > 0) {
+            coordinates = {
+              lat: parseFloat(fallbackData.results[0].geometry.lat),
+              lon: parseFloat(fallbackData.results[0].geometry.lng)
+            };
+            console.log("Fallback coordinates found:", coordinates);
+          }
+        }
+      } catch (error) {
+        console.error("Fallback geocoding failed:", error.message);
+      }
+    }
+    
+    // If all geocoding fails, use default coordinates
+    if (!coordinates) {
+      console.log("All geocoding services failed, using default coordinates");
+      coordinates = { lat: 20.5937, lon: 78.9629 }; // Default to India center
     }
 
     const newListing = new listing(req.body.listing);
     newListing.owner = req.user._id;
     
-    if (geoData.length > 0) {
-      const lat = parseFloat(geoData[0].lat);
-      const lon = parseFloat(geoData[0].lon);
-      newListing.geometry = {
-        type: "Point",
-        coordinates: [lon, lat],
-      };
-    }
+    // Always set geometry with coordinates (either real or default)
+    newListing.geometry = {
+      type: "Point",
+      coordinates: [coordinates.lon, coordinates.lat],
+    };
+    console.log("Final coordinates set:", coordinates);
     
     if (req.file) {
       newListing.image = {
